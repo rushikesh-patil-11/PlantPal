@@ -22,16 +22,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2, DropletIcon, SunIcon, Upload } from "lucide-react";
 
-// Schema for adding a plant
+// Schema for adding a plant - simplified to just name, species, and photo
 const addPlantSchema = z.object({
   name: z.string().min(1, "Plant name is required"),
   species: z.string().optional(),
   imageUrl: z.string().optional(),
-  waterFrequency: z.coerce.number().int().min(1, "Water frequency must be at least 1 day"),
-  lightNeeds: z.enum(lightNeedsOptions as [string, ...string[]], {
-    required_error: "Light needs is required",
-  }),
-  careNotes: z.string().optional(),
 });
 
 type AddPlantFormValues = z.infer<typeof addPlantSchema>;
@@ -46,12 +41,17 @@ export default function AddPlantModal({ isOpen, onClose }: AddPlantModalProps) {
   const { user } = useAuth();
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
 
-  // Create plant mutation
+  // Create plant mutation - enhanced to submit only needed info
+  // The backend will handle auto-suggestions for water frequency, light needs, and care instructions
   const createPlantMutation = useMutation({
     mutationFn: async (values: AddPlantFormValues) => {
-      const plantData: InsertPlant = {
+      const plantData = {
         ...values,
         userId: user!.id,
+        // Setting defaults for proper type compatibility with InsertPlant
+        // These will be overridden by the server with AI-suggested values
+        waterFrequency: 7, // Will be auto-suggested by AI based on plant species
+        lightNeeds: "medium", // Will be auto-determined by backend
       };
       
       const res = await apiRequest("POST", "/api/plants", plantData);
@@ -60,9 +60,10 @@ export default function AddPlantModal({ isOpen, onClose }: AddPlantModalProps) {
     onSuccess: () => {
       toast({
         title: "Plant added",
-        description: "Your plant has been added to your collection",
+        description: "Your plant has been added to your collection with auto-suggested care instructions",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/plants"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/ai-recommendations"] });
       form.reset();
       setUploadedImage(null);
       onClose();
@@ -76,16 +77,13 @@ export default function AddPlantModal({ isOpen, onClose }: AddPlantModalProps) {
     },
   });
 
-  // Form setup
+  // Form setup - simplified
   const form = useForm<AddPlantFormValues>({
     resolver: zodResolver(addPlantSchema),
     defaultValues: {
       name: "",
       species: "",
       imageUrl: "",
-      waterFrequency: 7,
-      lightNeeds: "medium",
-      careNotes: "",
     },
   });
 
@@ -183,91 +181,11 @@ export default function AddPlantModal({ isOpen, onClose }: AddPlantModalProps) {
                   onChange={handleImageUpload}
                 />
               </div>
+              <p className="text-xs text-muted-foreground mt-2 italic">
+                After adding your plant, we'll auto-suggest watering frequency and care instructions
+                based on the plant type!
+              </p>
             </FormItem>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="waterFrequency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Water Frequency</FormLabel>
-                    <Select
-                      value={field.value.toString()}
-                      onValueChange={(value) => field.onChange(parseInt(value))}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <span className="flex items-center">
-                            <DropletIcon className="h-4 w-4 text-primary mr-2" />
-                            <SelectValue placeholder="Select frequency" />
-                          </span>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="3">Every 3 days</SelectItem>
-                        <SelectItem value="5">Every 5 days</SelectItem>
-                        <SelectItem value="7">Every 7 days</SelectItem>
-                        <SelectItem value="10">Every 10 days</SelectItem>
-                        <SelectItem value="14">Every 14 days</SelectItem>
-                        <SelectItem value="21">Every 21 days</SelectItem>
-                        <SelectItem value="30">Every 30 days</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="lightNeeds"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Light Needs</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <span className="flex items-center">
-                            <SunIcon className="h-4 w-4 text-accent mr-2" />
-                            <SelectValue placeholder="Select light needs" />
-                          </span>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="low">Low light</SelectItem>
-                        <SelectItem value="medium">Medium light</SelectItem>
-                        <SelectItem value="bright-indirect">Bright indirect</SelectItem>
-                        <SelectItem value="full-sun">Full sun</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            
-            <FormField
-              control={form.control}
-              name="careNotes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Care Notes (optional)</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Add any specific care instructions or notes about your plant"
-                      className="resize-none"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
