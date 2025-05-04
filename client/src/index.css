@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Open+Sans:wght@400;500;600&display=swap');
+
+:root {
+  --background: 120 3% 98%;
+  --foreground: 218 35% 25%;
+  --muted: 60 4.8% 95.9%;
+  --muted-foreground: 25 5.3% 44.7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 218 35% 25%;
+  --card: 0 0% 100%;
+  --card-foreground: 218 35% 25%;
+  --border: 20 5.9% 90%;
+  --input: 20 5.9% 90%;
+  --primary: 122 54% 49%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 122 33% 70%;
+  --secondary-foreground: 24 9.8% 10%;
+  --accent: 37 100% 50%;
+  --accent-foreground: 24 9.8% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 60 9.1% 97.8%;
+  --ring: 122 54% 49%;
+  --radius: 0.75rem;
+  
+  /* Chart colors */
+  --chart-1: 122 54% 49%;
+  --chart-2: 122 33% 70%;
+  --chart-3: 37 100% 50%;
+  --chart-4: 204 71% 53%;
+  --chart-5: 210 20% 50%;
+  
+  /* Sidebar colors - same as main theme */
+  --sidebar-background: 120 3% 98%;
+  --sidebar-foreground: 218 35% 25%;
+  --sidebar-primary: 122 54% 49%;
+  --sidebar-primary-foreground: 211 100% 99%;
+  --sidebar-accent: 37 100% 50%;
+  --sidebar-accent-foreground: 24 9.8% 10%;
+  --sidebar-border: 20 5.9% 90%;
+  --sidebar-ring: 122 54% 49%;
+}
+
+.dark {
+  --background: 215 28% 17%;
+  --foreground: 0 0% 98%;
+  --muted: 215 28% 25%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 215 28% 17%;
+  --popover-foreground: 0 0% 98%;
+  --card: 215 28% 17%;
+  --card-foreground: 0 0% 98%;
+  --border: 215 28% 25%;
+  --input: 215 28% 25%;
+  --primary: 122 54% 49%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 122 33% 60%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 37 90% 50%;
+  --accent-foreground: 24 9.8% 10%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 122 54% 49%;
+  
+  /* Chart colors - adjusted for dark mode */
+  --chart-1: 122 54% 49%;
+  --chart-2: 122 33% 70%;
+  --chart-3: 37 100% 50%;
+  --chart-4: 204 71% 53%;
+  --chart-5: 210 20% 70%;
+  
+  /* Sidebar colors - same as main dark theme */
+  --sidebar-background: 215 28% 17%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-primary: 122 54% 49%;
+  --sidebar-primary-foreground: 211 100% 99%;
+  --sidebar-accent: 37 90% 50%;
+  --sidebar-accent-foreground: 24 9.8% 10%;
+  --sidebar-border: 215 28% 25%;
+  --sidebar-ring: 122 54% 49%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-openSans antialiased bg-background text-foreground;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-nunito;
+  }
+}
+
+@layer components {
+  .leaf-shape {
+    border-radius: 20px 5px 20px 5px;
+  }
+  
+  .plant-card {
+    transition: all 0.3s ease;
+  }
+  
+  .plant-card:hover {
+    transform: translateY(-5px);
+  }
+  
+  .calendar-day {
+    aspect-ratio: 1/1;
+  }
+  
+  .organic-shadow {
+    box-shadow: 0 6px 16px rgba(76, 175, 80, 0.1);
+  }
+  
+  .organic-shadow-hover {
+    box-shadow: 0 8px 20px rgba(76, 175, 80, 0.15);
+  }
+  
+  .water-drop {
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    transform: rotate(45deg);
+  }
+  
+  .notification-dot {
+    @apply absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-destructive;
+  }
+}

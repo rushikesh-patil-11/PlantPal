@@ -1,0 +1,167 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
+import Navbar from "@/components/navbar";
+import RemindersSection from "@/components/reminders-section";
+import CalendarPreview from "@/components/calendar-preview";
+import AiRecommendation from "@/components/ai-recommendation";
+import PlantCard from "@/components/plant-card";
+import AddPlantModal from "@/components/add-plant-modal";
+import { Leaf, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plant, Reminder, AiRecommendation as AiRecommendationType } from "@shared/schema";
+import { Link } from "wouter";
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  const [isAddPlantModalOpen, setIsAddPlantModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Fetch plants
+  const { data: plants, isLoading: isLoadingPlants } = useQuery<Plant[]>({
+    queryKey: ["/api/plants"],
+  });
+
+  // Fetch upcoming reminders
+  const { data: reminders, isLoading: isLoadingReminders } = useQuery<Reminder[]>({
+    queryKey: ["/api/reminders/upcoming"],
+  });
+
+  // Fetch AI recommendations
+  const { data: recommendations, isLoading: isLoadingRecommendations } = useQuery<AiRecommendationType[]>({
+    queryKey: ["/api/ai-recommendations"],
+  });
+
+  // Filter plants based on search query
+  const filteredPlants = plants?.filter(plant => 
+    plant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (plant.species && plant.species.toLowerCase().includes(searchQuery.toLowerCase()))
+  ) || [];
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Dashboard Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+          <div>
+            <h1 className="text-2xl font-nunito font-bold text-foreground">
+              Welcome back, <span>{user?.firstName || user?.username}!</span>
+            </h1>
+            <p className="text-muted-foreground mt-1">Let's check on your plant family today.</p>
+          </div>
+          <div className="mt-4 md:mt-0">
+            <Button 
+              onClick={() => setIsAddPlantModalOpen(true)}
+              className="rounded-full"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add New Plant
+            </Button>
+          </div>
+        </div>
+
+        {/* Reminders Section */}
+        <RemindersSection reminders={reminders} isLoading={isLoadingReminders} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+          {/* Calendar Preview */}
+          <div className="lg:col-span-2">
+            <CalendarPreview reminders={reminders} isLoading={isLoadingReminders} />
+          </div>
+          
+          {/* AI Recommendation */}
+          <div>
+            <AiRecommendation 
+              recommendation={recommendations?.[0]} 
+              isLoading={isLoadingRecommendations} 
+            />
+          </div>
+        </div>
+
+        {/* Plant Collection */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-nunito font-semibold text-foreground">Your Plant Collection</h2>
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search plants..."
+                  className="pl-9 pr-3 py-2 w-full md:w-[200px] rounded-full"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" size="icon" className="rounded-full hidden md:flex">
+                <SlidersHorizontal className="h-4 w-4" />
+                <span className="sr-only">Filter</span>
+              </Button>
+            </div>
+          </div>
+          
+          {isLoadingPlants ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {[1, 2, 3, 4].map(i => (
+                <Card key={i} className="overflow-hidden">
+                  <Skeleton className="h-48 w-full" />
+                  <div className="p-4">
+                    <Skeleton className="h-6 w-3/4 mb-2" />
+                    <Skeleton className="h-4 w-1/2 mb-3" />
+                    <div className="flex justify-between items-center">
+                      <Skeleton className="h-4 w-1/3" />
+                      <Skeleton className="h-4 w-1/3" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : filteredPlants.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {filteredPlants.slice(0, 8).map(plant => (
+                <PlantCard key={plant.id} plant={plant} />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+              <Leaf className="h-12 w-12 text-primary mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-nunito font-semibold mb-2">No plants found</h3>
+              <p className="text-muted-foreground mb-4">
+                {plants?.length === 0 
+                  ? "Start by adding your first plant to your collection." 
+                  : "No plants match your search. Try a different term."}
+              </p>
+              {plants?.length === 0 && (
+                <Button onClick={() => setIsAddPlantModalOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add First Plant
+                </Button>
+              )}
+            </div>
+          )}
+          
+          {filteredPlants.length > 8 && (
+            <div className="mt-5 flex justify-center">
+              <Button variant="link" className="text-primary" asChild>
+                <Link href="/plants">
+                  View All Plants
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                </Link>
+              </Button>
+            </div>
+          )}
+        </section>
+      </main>
+      
+      <AddPlantModal 
+        isOpen={isAddPlantModalOpen}
+        onClose={() => setIsAddPlantModalOpen(false)}
+      />
+    </div>
+  );
+}
