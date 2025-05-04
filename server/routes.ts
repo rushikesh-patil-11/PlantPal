@@ -7,7 +7,11 @@ import {
   insertCareLogSchema, 
   insertReminderSchema 
 } from "@shared/schema";
-import { getAIRecommendation } from "./perplexity";
+import { 
+  getAIRecommendation, 
+  suggestWateringFrequency, 
+  getBasicCareInstructions 
+} from "./perplexity";
 import { z } from "zod";
 import { add } from "date-fns";
 
@@ -56,12 +60,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/plants", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user!.id;
-      const validation = insertPlantSchema.safeParse({ ...req.body, userId });
+      
+      // Extract data from the request
+      const requestData = { ...req.body, userId };
+      
+      // If waterFrequency is not provided, suggest it based on plant name and species
+      if (!requestData.waterFrequency) {
+        requestData.waterFrequency = suggestWateringFrequency(
+          requestData.name, 
+          requestData.species
+        );
+      }
+      
+      // Validate the plant data
+      const validation = insertPlantSchema.safeParse(requestData);
       
       if (!validation.success) {
         return res.status(400).json({ message: "Invalid plant data", errors: validation.error });
       }
       
+      // Create the plant
       const plant = await storage.createPlant(validation.data);
       
       // Auto-create a watering reminder based on the plant's water frequency
@@ -71,6 +89,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         plantId: plant.id,
         reminderType: "watering",
         dueDate
+      });
+      
+      // Auto-generate care instructions and create an AI recommendation
+      const careInstructions = getBasicCareInstructions(plant.name, plant.species);
+      
+      // Create a title for the care instructions
+      const title = `Care Guide for ${plant.name}`;
+      
+      // Extract tags from the care instructions
+      const tags = ["watering", "light", "care", "basic"];
+      
+      // Store the recommendation
+      await storage.createAiRecommendation({
+        userId,
+        plantId: plant.id,
+        title,
+        content: careInstructions,
+        tags
       });
       
       res.status(201).json(plant);

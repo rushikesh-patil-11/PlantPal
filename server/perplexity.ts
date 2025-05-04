@@ -627,7 +627,7 @@ function getIssueAdvice(issue: string, plantType?: string): string {
   const issueLower = issue.toLowerCase();
   
   // Check for common issues
-  if (issueLower.includes('yellow') && issueLower.includes('leaf' || 'leaves')) {
+  if (issueLower.includes('yellow') && (issueLower.includes('leaf') || issueLower.includes('leaves'))) {
     return `Yellow leaves are most commonly caused by overwatering. Ensure you're allowing the soil to dry appropriately between waterings. Check that your pot has proper drainage and that water isn't collecting in the saucer.
     
 Other potential causes include:
@@ -815,6 +815,103 @@ function getDescriptionAdvice(description: string): string {
   return advice;
 }
 
+// Helper function to suggest watering frequency based on plant type
+export function suggestWateringFrequency(plantName: string, plantSpecies?: string): number {
+  const normalizedPlantName = plantName.toLowerCase().trim();
+  const normalizedSpecies = plantSpecies ? plantSpecies.toLowerCase().trim() : '';
+  
+  // Default watering frequency (in days) if no match is found
+  const defaultFrequency = 7;
+  
+  // Create a combined search string
+  const searchString = `${normalizedPlantName} ${normalizedSpecies}`.toLowerCase();
+  
+  // Check for specific plant types with known watering frequencies
+  if (searchString.includes('monstera') || searchString.includes('deliciosa')) {
+    return 7; // Once every 7 days
+  }
+  
+  if (searchString.includes('fiddle leaf') || searchString.includes('ficus lyrata')) {
+    return 7; // Once every 7 days
+  }
+  
+  if (searchString.includes('pothos') || searchString.includes('epipremnum')) {
+    return 10; // Once every 10 days
+  }
+  
+  if (searchString.includes('snake plant') || searchString.includes('sansevieria')) {
+    return 21; // Once every 3 weeks
+  }
+  
+  if (searchString.includes('zz plant') || searchString.includes('zamioculcas')) {
+    return 21; // Once every 3 weeks
+  }
+  
+  if (searchString.includes('peace lily') || searchString.includes('spathiphyllum')) {
+    return 5; // Once every 5 days (likes consistently moist soil)
+  }
+  
+  if (searchString.includes('orchid') || searchString.includes('phalaenopsis')) {
+    return 7; // Once every 7 days
+  }
+  
+  if (searchString.includes('aloe') || searchString.includes('cactus') || 
+      searchString.includes('succulent') || searchString.includes('haworthia')) {
+    return 14; // Once every 2 weeks
+  }
+  
+  if (searchString.includes('fern') || searchString.includes('calathea') || 
+      searchString.includes('maranta') || searchString.includes('prayer plant')) {
+    return 3; // Every 3 days (likes humidity and moisture)
+  }
+  
+  return defaultFrequency;
+}
+
+// Get basic care instructions for a plant
+export function getBasicCareInstructions(plantName: string, plantSpecies?: string | null): string {
+  const normalizedPlantName = plantName.toLowerCase().trim();
+  
+  // Look for specific plant matches in our database
+  const plantTypes = Object.keys(plantCareDatabase);
+  
+  // Try to find the best match
+  const matchingPlant = plantTypes.find(plant => 
+    normalizedPlantName.includes(plant) || 
+    (plantSpecies && plantSpecies.toLowerCase().includes(plant))
+  );
+  
+  if (matchingPlant && matchingPlant !== 'default') {
+    // Extract first few sections from the plant care database
+    const plantInfo = plantCareDatabase[matchingPlant as keyof typeof plantCareDatabase];
+    const content = plantInfo.content;
+    
+    // Extract introduction, watering, and light sections
+    const sections = content.split('##').slice(0, 3).join('##');
+    
+    // Replace plant name with the user's plant name
+    return sections.replace(
+      new RegExp(matchingPlant, 'gi'), 
+      plantName
+    );
+  } else {
+    // Return generic care instructions
+    return `
+# Care Guide for ${plantName}${plantSpecies ? ` (${plantSpecies})` : ''}
+
+## Watering
+- Check the top 1-2 inches of soil; water when dry
+- Use room temperature water to avoid shocking roots
+- Adjust watering frequency based on season and environment
+
+## Light
+- Most houseplants prefer bright, indirect light
+- Avoid direct sunlight which can scorch leaves
+- Rotate plants regularly to ensure even growth
+`;
+  }
+}
+
 export async function getAIRecommendation({
   plantName,
   plantSpecies,
@@ -826,6 +923,8 @@ export async function getAIRecommendation({
   careIssue?: string;
   plantDescription?: string;
 }) {
+  // No need to check for API key anymore since we're using our local database
+  
   // Normalize the plant name for lookup
   const normalizedPlantName = plantName.toLowerCase().trim();
   
@@ -844,8 +943,10 @@ export async function getAIRecommendation({
   
   if (matchingPlant && matchingPlant !== 'default') {
     // Found a specific plant match
-    content = plantCareDatabase[matchingPlant].content;
-    tags = plantCareDatabase[matchingPlant].tags;
+    // Need to type-check when accessing plant care database
+    const plantInfo = plantCareDatabase[matchingPlant as keyof typeof plantCareDatabase];
+    content = plantInfo.content;
+    tags = plantInfo.tags;
     
     // Personalize the content with the user's plant name
     content = content.replace(
