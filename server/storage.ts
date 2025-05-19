@@ -38,12 +38,12 @@ export interface IStorage {
   getCareLogsByUserId(userId: number): Promise<CareLog[]>;
   createCareLog(careLog: InsertCareLog): Promise<CareLog>;
   
-  // Reminder operations
-  getRemindersByUserId(userId: number): Promise<Reminder[]>;
-  getUpcomingRemindersByUserId(userId: number): Promise<Reminder[]>;
-  getRemindersByPlantId(plantId: number): Promise<Reminder[]>;
-  createReminder(reminder: InsertReminder): Promise<Reminder>;
-  markReminderAsCompleted(id: number): Promise<Reminder | undefined>;
+  // Reminder operations (only stubs as calendar functionality is removed)
+  getRemindersByUserId(userId: number): Promise<any[]>;
+  getUpcomingRemindersByUserId(userId: number): Promise<any[]>;
+  getRemindersByPlantId(plantId: number): Promise<any[]>;
+  createReminder(reminder: any): Promise<any>;
+  markReminderAsCompleted(id: number): Promise<any | undefined>;
   
   // AI recommendation operations
   getAiRecommendationsByUserId(userId: number): Promise<AiRecommendation[]>;
@@ -52,7 +52,7 @@ export interface IStorage {
   markAiRecommendationAsRead(id: number): Promise<AiRecommendation | undefined>;
   
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: session.Store;
 }
 
 export class MemStorage implements IStorage {
@@ -250,4 +250,7 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import { SupabaseStorage } from './supabaseStorage';
+
+// Use Supabase for storage instead of memory storage
+export const storage = new SupabaseStorage();
