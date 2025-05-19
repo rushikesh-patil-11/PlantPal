@@ -19,6 +19,10 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 
 const MemoryStore = createMemoryStore(session);
+const sessionStoreConfig = {
+  checkPeriod: 86400000, // prune expired entries every 24h
+  stale: false
+};
 
 export interface IStorage {
   // User operations
@@ -38,12 +42,9 @@ export interface IStorage {
   getCareLogsByUserId(userId: number): Promise<CareLog[]>;
   createCareLog(careLog: InsertCareLog): Promise<CareLog>;
   
-  // Reminder operations (only stubs as calendar functionality is removed)
-  getRemindersByUserId(userId: number): Promise<any[]>;
-  getUpcomingRemindersByUserId(userId: number): Promise<any[]>;
-  getRemindersByPlantId(plantId: number): Promise<any[]>;
-  createReminder(reminder: any): Promise<any>;
-  markReminderAsCompleted(id: number): Promise<any | undefined>;
+  // Basic plant reminder operations
+  createBasicReminder(plantId: number, type: string): Promise<void>;
+  getBasicReminders(plantId: number): Promise<any[]>;
   
   // AI recommendation operations
   getAiRecommendationsByUserId(userId: number): Promise<AiRecommendation[]>;
@@ -76,9 +77,7 @@ export class MemStorage implements IStorage {
     this.remindersData = new Map();
     this.aiRecommendationsData = new Map();
     
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000 // prune expired entries every 24h
-    });
+    this.sessionStore = new MemoryStore(sessionStoreConfig);
     
     this.userIdCounter = 1;
     this.plantIdCounter = 1;

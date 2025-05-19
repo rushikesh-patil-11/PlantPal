@@ -217,64 +217,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Reminder routes
-  app.get("/api/reminders", isAuthenticated, async (req, res) => {
+  // Basic reminder routes
+  app.post("/api/plants/:id/reminders", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.user!.id;
-      const reminders = await storage.getRemindersByUserId(userId);
-      res.json(reminders);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch reminders", error });
-    }
-  });
-  
-  app.get("/api/reminders/upcoming", isAuthenticated, async (req, res) => {
-    try {
-      const userId = req.user!.id;
-      const reminders = await storage.getUpcomingRemindersByUserId(userId);
-      res.json(reminders);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch upcoming reminders", error });
-    }
-  });
-  
-  app.post("/api/reminders", isAuthenticated, async (req, res) => {
-    try {
-      const userId = req.user!.id;
-      const validation = insertReminderSchema.safeParse({ ...req.body, userId });
+      const plantId = parseInt(req.params.id);
+      const plant = await storage.getPlant(plantId);
       
-      if (!validation.success) {
-        return res.status(400).json({ message: "Invalid reminder data", errors: validation.error });
-      }
-      
-      const plant = await storage.getPlant(validation.data.plantId);
       if (!plant) {
         return res.status(404).json({ message: "Plant not found" });
       }
       
-      if (plant.userId !== userId) {
+      if (plant.userId !== req.user!.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      const reminder = await storage.createReminder(validation.data);
-      res.status(201).json(reminder);
+      await storage.createBasicReminder(plantId, req.body.type);
+      res.status(201).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to create reminder", error });
     }
   });
   
-  app.post("/api/reminders/:id/complete", isAuthenticated, async (req, res) => {
+  app.get("/api/plants/:id/reminders", isAuthenticated, async (req, res) => {
     try {
-      const reminderId = parseInt(req.params.id);
-      const updatedReminder = await storage.markReminderAsCompleted(reminderId);
+      const plantId = parseInt(req.params.id);
+      const plant = await storage.getPlant(plantId);
       
-      if (!updatedReminder) {
-        return res.status(404).json({ message: "Reminder not found" });
+      if (!plant) {
+        return res.status(404).json({ message: "Plant not found" });
       }
       
-      res.json(updatedReminder);
+      if (plant.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      const reminders = await storage.getBasicReminders(plantId);
+      res.json(reminders);
     } catch (error) {
-      res.status(500).json({ message: "Failed to complete reminder", error });
+      res.status(500).json({ message: "Failed to fetch reminders", error });
     }
   });
   
