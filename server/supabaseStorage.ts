@@ -13,14 +13,14 @@ import {
   type InsertAiRecommendation
 } from "@shared/schema";
 import { supabase } from '@shared/supabase';
-import * as session from "express-session";
+import session from "express-session";
 import { IStorage } from './storage';
 import createMemoryStore from "memorystore";
 
 const MemoryStore = createMemoryStore(session);
 
 export class SupabaseStorage implements IStorage {
-  sessionStore: session.Store;
+  sessionStore: any;
   
   constructor() {
     // Use memory store for session (can be replaced with PostgreSQL store later)
