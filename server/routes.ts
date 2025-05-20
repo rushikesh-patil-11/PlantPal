@@ -1,11 +1,12 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth } from "./auth";
+import { storage } from "./storage.ts";
+import { setupAuth } from "./auth.ts";
 import { 
   insertPlantSchema, 
   insertCareLogSchema, 
-  insertReminderSchema 
+  insertReminderSchema, 
+  User as AppUser 
 } from "@shared/schema";
 import { 
   getAIRecommendation, 
@@ -15,22 +16,40 @@ import {
 import { z } from "zod";
 import { add } from "date-fns";
 
+// Extend Express Request type to include the user property
+interface AuthenticatedRequest extends Request {
+  user?: AppUser; 
+}
+
 // Middleware to check if user is authenticated
-const isAuthenticated = (req: any, res: any, next: any) => {
-  if (req.isAuthenticated()) {
+const isAuthenticated = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (req.user && req.user.id) { 
     return next();
   }
   res.status(401).json({ message: "Unauthorized" });
 };
 
+// Schema for the request body of the basic reminder creation route
+const createBasicReminderBodySchema = z.object({
+  reminderType: z.string(), 
+  dueDate: z.coerce.date(),    
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup authentication routes
-  setupAuth(app);
+  // Setup authentication routes and middleware
+  setupAuth(app); 
   
+  // Route to get the current authenticated application user
+  app.get("/api/auth/me", isAuthenticated, (req: AuthenticatedRequest, res: Response) => {
+    // isAuthenticated middleware ensures req.user is populated if token is valid
+    // req.user here is the AppUser from our database
+    res.json({ data: req.user }); 
+  });
+
   // Plant routes
-  app.get("/api/plants", isAuthenticated, async (req, res) => {
+  app.get("/api/plants", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
-      const userId = req.user!.id;
+      const userId = req.user!.id; 
       const plants = await storage.getPlantsByUserId(userId);
       res.json(plants);
     } catch (error) {
@@ -38,16 +57,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/plants/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/plants/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
-      const plantId = parseInt(req.params.id);
+      const plantId = parseInt(req.params.id, 10);
+      if (isNaN(plantId)) {
+        return res.status(400).json({ message: "Invalid plant ID format" });
+      }
       const plant = await storage.getPlant(plantId);
       
       if (!plant) {
         return res.status(404).json({ message: "Plant not found" });
       }
       
-      if (plant.userId !== req.user!.id) {
+      const userId = req.user!.id;
+      if (plant.userId !== userId) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -57,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/plants", isAuthenticated, async (req, res) => {
+  app.post("/api/plants", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
       const userId = req.user!.id;
       
@@ -76,20 +99,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = insertPlantSchema.safeParse(requestData);
       
       if (!validation.success) {
-        return res.status(400).json({ message: "Invalid plant data", errors: validation.error });
+        console.error("Plant data validation failed:", validation.error.flatten().fieldErrors);
+        return res.status(400).json({ 
+          message: "Invalid plant data", 
+          errors: validation.error.flatten().fieldErrors 
+        });
       }
       
       // Create the plant
       const plant = await storage.createPlant(validation.data);
-      
-      // Auto-create a watering reminder based on the plant's water frequency
-      const dueDate = add(new Date(), { days: plant.waterFrequency });
-      await storage.createReminder({
-        userId,
-        plantId: plant.id,
-        reminderType: "watering",
-        dueDate
-      });
       
       // Auto-generate care instructions and create an AI recommendation
       const careInstructions = getBasicCareInstructions(plant.name, plant.species);
@@ -111,20 +129,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(plant);
     } catch (error) {
+      console.error("Error in POST /api/plants:", error);
       res.status(500).json({ message: "Failed to create plant", error });
     }
   });
   
-  app.put("/api/plants/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/plants/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
-      const plantId = parseInt(req.params.id);
+      const plantId = parseInt(req.params.id, 10);
+      if (isNaN(plantId)) {
+        return res.status(400).json({ message: "Invalid plant ID format" });
+      }
       const plant = await storage.getPlant(plantId);
       
       if (!plant) {
         return res.status(404).json({ message: "Plant not found" });
       }
       
-      if (plant.userId !== req.user!.id) {
+      const userId = req.user!.id;
+      if (plant.userId !== userId) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -135,16 +158,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.delete("/api/plants/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/plants/:id", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
-      const plantId = parseInt(req.params.id);
+      const plantId = parseInt(req.params.id, 10);
+      if (isNaN(plantId)) {
+        return res.status(400).json({ message: "Invalid plant ID format" });
+      }
       const plant = await storage.getPlant(plantId);
       
       if (!plant) {
         return res.status(404).json({ message: "Plant not found" });
       }
       
-      if (plant.userId !== req.user!.id) {
+      const userId = req.user!.id;
+      if (plant.userId !== userId) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -160,16 +187,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Care log routes
-  app.get("/api/plants/:id/care-logs", isAuthenticated, async (req, res) => {
+  app.get("/api/plants/:id/care-logs", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
-      const plantId = parseInt(req.params.id);
+      const plantId = parseInt(req.params.id, 10);
+      if (isNaN(plantId)) {
+        return res.status(400).json({ message: "Invalid plant ID format" });
+      }
       const plant = await storage.getPlant(plantId);
       
       if (!plant) {
         return res.status(404).json({ message: "Plant not found" });
       }
       
-      if (plant.userId !== req.user!.id) {
+      const userId = req.user!.id;
+      if (plant.userId !== userId) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -180,16 +211,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/care-logs", isAuthenticated, async (req, res) => {
+  app.post("/api/care-logs", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
       const userId = req.user!.id;
       const validation = insertCareLogSchema.safeParse({ ...req.body, userId });
       
       if (!validation.success) {
-        return res.status(400).json({ message: "Invalid care log data", errors: validation.error });
+        return res.status(400).json({ message: "Invalid care log data", errors: validation.error.flatten().fieldErrors });
       }
       
-      const plant = await storage.getPlant(validation.data.plantId);
+      // plantId from validation.data is already a number due to schema validation
+      const plantId = validation.data.plantId;
+      
+      const plant = await storage.getPlant(plantId);
       if (!plant) {
         return res.status(404).json({ message: "Plant not found" });
       }
@@ -199,77 +233,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const careLog = await storage.createCareLog(validation.data);
-      
-      // If this is a watering activity, create a new reminder for the next watering
-      if (validation.data.activityType === "watering") {
-        const dueDate = add(new Date(), { days: plant.waterFrequency });
-        await storage.createReminder({
-          userId,
-          plantId: plant.id,
-          reminderType: "watering",
-          dueDate
-        });
-      }
-      
       res.status(201).json(careLog);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create care log", error });
+      console.error("Error in POST /api/care-logs:", error);
+      res.status(500).json({ message: "Failed to add care log", error });
     }
   });
   
-  // Basic reminder routes
-  app.post("/api/plants/:id/reminders", isAuthenticated, async (req, res) => {
+  app.put("/api/care-logs/:logId", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
-      const plantId = parseInt(req.params.id);
-      const plant = await storage.getPlant(plantId);
+      const logId = parseInt(req.params.logId, 10);
+      if (isNaN(logId)) {
+        return res.status(400).json({ message: "Invalid log ID format" });
+      }
+      const careLog = await storage.getCareLogById(logId);
       
-      if (!plant) {
-        return res.status(404).json({ message: "Plant not found" });
+      if (!careLog) {
+        return res.status(404).json({ message: "Care log not found" });
       }
       
-      if (plant.userId !== req.user!.id) {
+      const userId = req.user!.id;
+      if (careLog.userId !== userId) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      await storage.createBasicReminder(plantId, req.body.type);
-      res.status(201).send();
+      const updatedCareLog = await storage.updateCareLog(logId, req.body);
+      res.json(updatedCareLog);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create reminder", error });
+      res.status(500).json({ message: "Failed to update care log", error });
     }
   });
   
-  app.get("/api/plants/:id/reminders", isAuthenticated, async (req, res) => {
+  app.delete("/api/care-logs/:logId", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
-      const plantId = parseInt(req.params.id);
-      const plant = await storage.getPlant(plantId);
+      const logId = parseInt(req.params.logId, 10);
+      if (isNaN(logId)) {
+        return res.status(400).json({ message: "Invalid log ID format" });
+      }
+      const careLog = await storage.getCareLogById(logId);
       
-      if (!plant) {
-        return res.status(404).json({ message: "Plant not found" });
+      if (!careLog) {
+        return res.status(404).json({ message: "Care log not found" });
       }
       
-      if (plant.userId !== req.user!.id) {
+      const userId = req.user!.id;
+      if (careLog.userId !== userId) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      const reminders = await storage.getBasicReminders(plantId);
+      const deleted = await storage.deleteCareLog(logId);
+      if (deleted) {
+        res.status(204).send();
+      } else {
+        res.status(500).json({ message: "Failed to delete care log" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete care log", error });
+    }
+  });
+  
+  // Reminder routes
+  app.get("/api/plants/:id/reminders", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
+    try {
+      const plantId = parseInt(req.params.id, 10);
+      if (isNaN(plantId)) {
+        return res.status(400).json({ message: "Invalid plant ID format" });
+      }
+      const reminders = await storage.getRemindersByPlantId(plantId);
       res.json(reminders);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch reminders", error });
     }
   });
   
+  app.post("/api/plants/:plantId/reminders/basic", isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const plantIdParams = parseInt(req.params.plantId, 10);
+
+      if (isNaN(plantIdParams)) {
+        return res.status(400).json({ message: "Invalid plant ID format" });
+      }
+
+      const validation = createBasicReminderBodySchema.safeParse(req.body);
+
+      if (!validation.success) {
+        return res.status(400).json({ message: "Invalid input", errors: validation.error.issues });
+      }
+      
+      const plant = await storage.getPlant(plantIdParams);
+      if (!plant) {
+        return res.status(404).json({ message: "Plant not found" });
+      }
+      
+      if (plant.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      await storage.createReminder({
+        userId,
+        plantId: plantIdParams,
+        reminderType: validation.data.reminderType,
+        dueDate: validation.data.dueDate, // Pass dueDate
+      });
+      res.status(201).json({ message: "Basic reminder created successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create reminder", error });
+    }
+  });
+  
+  app.post("/api/plants/:plantId/reminders", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
+    try {
+      const plantId = parseInt(req.params.plantId, 10);
+      if (isNaN(plantId)) {
+        return res.status(400).json({ message: "Invalid plant ID format" });
+      }
+      const userId = req.user!.id;
+
+      // Validate that the plant exists and belongs to the user
+      const plant = await storage.getPlant(plantId);
+      if (!plant || plant.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden or plant not found" });
+      }
+
+      const reminderData = { ...req.body, plantId, userId }; 
+      const validation = insertReminderSchema.safeParse(reminderData); 
+      
+      if (!validation.success) {
+        return res.status(400).json({ message: "Invalid reminder data", errors: validation.error.flatten().fieldErrors });
+      }
+      
+      const reminder = await storage.createReminder(validation.data);
+      res.status(201).json(reminder);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create reminder", error });
+    }
+  });
+  
+  app.put("/api/reminders/:reminderId", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
+    try {
+      const reminderId = parseInt(req.params.reminderId, 10);
+      if (isNaN(reminderId)) {
+        return res.status(400).json({ message: "Invalid reminder ID format" });
+      }
+      const reminder = await storage.getReminderById(reminderId);
+      
+      if (!reminder) {
+        return res.status(404).json({ message: "Reminder not found" });
+      }
+      
+      const userId = req.user!.id;
+      if (reminder.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      const updatedReminder = await storage.updateReminder(reminderId, req.body);
+      res.json(updatedReminder);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update reminder", error });
+    }
+  });
+  
+  app.delete("/api/reminders/:reminderId", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
+    try {
+      const reminderId = parseInt(req.params.reminderId, 10);
+      if (isNaN(reminderId)) {
+        return res.status(400).json({ message: "Invalid reminder ID format" });
+      }
+      const reminder = await storage.getReminderById(reminderId);
+      
+      if (!reminder) {
+        return res.status(404).json({ message: "Reminder not found" });
+      }
+      
+      const userId = req.user!.id;
+      if (reminder.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      const deleted = await storage.deleteReminder(reminderId);
+      if (deleted) {
+        res.status(204).send();
+      } else {
+        res.status(500).json({ message: "Failed to delete reminder" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete reminder", error });
+    }
+  });
+  
   // AI Recommendation routes
-  app.get("/api/ai-recommendations", isAuthenticated, async (req, res) => {
+  app.get("/api/ai-recommendations", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
       const userId = req.user!.id;
       const recommendations = await storage.getAiRecommendationsByUserId(userId);
       res.json(recommendations);
     } catch (error) {
+      console.error("Error in GET /api/ai-recommendations:", error);
       res.status(500).json({ message: "Failed to fetch AI recommendations", error });
     }
   });
-  
-  app.post("/api/ai-recommendations/generate", isAuthenticated, async (req, res) => {
+
+  app.post("/api/ai-recommendations/generate", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
       const requestSchema = z.object({
         plantId: z.number().optional(),
@@ -329,18 +494,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/ai-recommendations/:id/read", isAuthenticated, async (req, res) => {
+  app.post("/api/ai-recommendations/:id/read", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
     try {
-      const recommendationId = parseInt(req.params.id);
-      const updatedRecommendation = await storage.markAiRecommendationAsRead(recommendationId);
-      
-      if (!updatedRecommendation) {
-        return res.status(404).json({ message: "Recommendation not found" });
+      const recommendationId = parseInt(req.params.id, 10);
+      if (isNaN(recommendationId)) {
+        return res.status(400).json({ message: "Invalid recommendation ID format" });
       }
       
+      const recommendation = await storage.getAiRecommendationById(recommendationId); 
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+
+      const userId = req.user!.id;
+
+      if (recommendation.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      const updatedRecommendation = await storage.updateAiRecommendationReadStatus(recommendationId, true);
       res.json(updatedRecommendation);
     } catch (error) {
       res.status(500).json({ message: "Failed to mark recommendation as read", error });
+    }
+  });
+
+  // User routes
+  app.get("/api/user", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    // The isAuthenticated middleware ensures that req.user is populated.
+    // If req.user exists, it means the token was valid, and authMiddleware
+    // successfully fetched or created the application user.
+    if (req.user) {
+      res.json(req.user);
+    } else {
+      // This case should ideally not be reached if isAuthenticated and authMiddleware work correctly.
+      // It implies a potential issue in the auth flow upstream.
+      console.error("[/api/user] Error: req.user is undefined even after isAuthenticated. Check authMiddleware.");
+      res.status(404).json({ message: "User profile not found after authentication." });
     }
   });
 

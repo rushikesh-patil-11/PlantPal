@@ -30,7 +30,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import Navbar from "@/components/navbar";
+import { MainLayout } from "@/components/layout/main-layout";
+import { Navbar } from "@/components/navbar";
 import AiRecommendation from "@/components/ai-recommendation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -154,9 +155,8 @@ export default function AiRecommendations() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <MainLayout>
+      <div className="max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
           <div>
             <h1 className="text-2xl font-nunito font-bold text-foreground">AI Care Recommendations</h1>
@@ -233,49 +233,33 @@ export default function AiRecommendations() {
             ))}
           </div>
         ) : filteredRecommendations && filteredRecommendations.length > 0 ? (
-          <div className="space-y-6">
-            {filteredRecommendations.map(recommendation => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredRecommendations.map((rec) => (
               <AiRecommendation
-                key={recommendation.id}
-                recommendation={recommendation}
-                onViewMore={() => markAsReadMutation.mutate(recommendation.id)}
+                key={rec.id}
+                recommendation={rec}
+                onViewMore={() => markAsReadMutation.mutate(rec.id)}
               />
             ))}
           </div>
-        ) : recommendations && recommendations.length > 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-            <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-nunito font-semibold mb-2">No matching recommendations</h3>
-            <p className="text-muted-foreground mb-4">
-              Try using different search terms or categories
-            </p>
-            <Button variant="outline" onClick={() => {
-              setSearchQuery("");
-              setSelectedCategory("all");
-            }}>
-              Clear Filters
-            </Button>
-          </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-            <Lightbulb className="h-12 w-12 text-primary mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-nunito font-semibold mb-2">No AI recommendations yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Get personalized care tips for your plants by generating your first recommendation
+          <div className="text-center py-12">
+            <Lightbulb className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-2 text-sm font-medium text-foreground">No recommendations</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {searchQuery || selectedCategory !== "all" 
+                ? "No recommendations match your current filters."
+                : "Generate some new tips to get started!"}
             </p>
-            <Button onClick={() => setIsGenerateModalOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Generate First Recommendation
-            </Button>
           </div>
         )}
-      </main>
+      </div>
 
       {/* Generate Recommendation Dialog */}
       <Dialog open={isGenerateModalOpen} onOpenChange={setIsGenerateModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-[525px]">
           <DialogHeader>
-            <DialogTitle>Generate AI Care Recommendation</DialogTitle>
+            <DialogTitle>Generate AI Care Tips</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -284,25 +268,23 @@ export default function AiRecommendations() {
                 name="plantId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Select Your Plant (Optional)</FormLabel>
-                    <Select
+                    <FormLabel>Select Plant (Optional)</FormLabel>
+                    <Select 
                       onValueChange={(value) => {
-                        const plantId = parseInt(value);
-                        field.onChange(plantId);
-                        onPlantChange(plantId);
+                        field.onChange(parseInt(value));
+                        onPlantChange(parseInt(value));
                       }}
-                      value={field.value?.toString()}
+                      defaultValue={field.value?.toString()} 
+                      disabled={isLoadingPlants}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Choose from your plants" />
+                          <SelectValue placeholder="Choose a plant from your collection" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {isLoadingPlants ? (
-                          <div className="p-2">
-                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                          </div>
+                          <SelectItem value="loading" disabled>Loading plants...</SelectItem>
                         ) : (
                           plants?.map(plant => (
                             <SelectItem key={plant.id} value={plant.id.toString()}>
@@ -316,9 +298,6 @@ export default function AiRecommendations() {
                   </FormItem>
                 )}
               />
-
-              <Separator className="my-2" />
-
               <FormField
                 control={form.control}
                 name="plantName"
@@ -326,50 +305,47 @@ export default function AiRecommendations() {
                   <FormItem>
                     <FormLabel>Plant Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Monstera" {...field} />
+                      <Input placeholder="E.g., Monstera Deliciosa" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="plantSpecies"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Species (Optional)</FormLabel>
+                    <FormLabel>Plant Species (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Monstera Deliciosa" {...field} />
+                      <Input placeholder="E.g., Araceae" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="careIssue"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Care Issue or Question (Optional)</FormLabel>
+                    <FormLabel>Specific Care Issue (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Yellow leaves" {...field} />
+                      <Input placeholder="E.g., Yellowing leaves, pests" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="plantDescription"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Additional Details (Optional)</FormLabel>
+                    <FormLabel>Additional Plant Description (Optional)</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Describe your plant's environment, current condition, or specific care needs"
+                      <Textarea
+                        placeholder="Provide more details about your plant or its environment..."
                         className="resize-none"
                         {...field}
                       />
@@ -378,33 +354,19 @@ export default function AiRecommendations() {
                   </FormItem>
                 )}
               />
-
               <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsGenerateModalOpen(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setIsGenerateModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button 
-                  type="submit"
-                  disabled={generateRecommendationMutation.isPending}
-                >
-                  {generateRecommendationMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    "Generate Tips"
-                  )}
+                <Button type="submit" disabled={generateRecommendationMutation.isPending}>
+                  {generateRecommendationMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Generate Tips
                 </Button>
               </DialogFooter>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
-    </div>
+  </MainLayout>
   );
 }

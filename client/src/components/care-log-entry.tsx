@@ -117,11 +117,11 @@ export default function CareLogEntry({ careLog }: CareLogEntryProps) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <time className="text-xs text-muted-foreground ml-2">
-                  {formatDate(careLog.performedAt)}
+                  {careLog.performedAt ? formatDate(careLog.performedAt) : 'Date unavailable'}
                 </time>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{new Date(careLog.performedAt).toLocaleString()}</p>
+                <p>{careLog.performedAt ? new Date(careLog.performedAt).toLocaleString() : 'Date unavailable'}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

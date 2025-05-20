@@ -4,15 +4,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import Navbar from "@/components/navbar";
-import RemindersSection from "@/components/reminders-section";
-import CalendarPreview from "@/components/calendar-preview";
+import { MainLayout } from "@/components/layout/main-layout"; // Import MainLayout
 import AiRecommendation from "@/components/ai-recommendation";
 import PlantCard from "@/components/plant-card";
 import AddPlantModal from "@/components/add-plant-modal";
 import { Leaf, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Plant, Reminder, AiRecommendation as AiRecommendationType } from "@shared/schema";
+import { Plant, AiRecommendation as AiRecommendationType } from "@shared/schema";
 import { Link } from "wouter";
 
 export default function Dashboard() {
@@ -23,11 +21,6 @@ export default function Dashboard() {
   // Fetch plants
   const { data: plants, isLoading: isLoadingPlants } = useQuery<Plant[]>({
     queryKey: ["/api/plants"],
-  });
-
-  // Fetch upcoming reminders
-  const { data: reminders, isLoading: isLoadingReminders } = useQuery<Reminder[]>({
-    queryKey: ["/api/reminders/upcoming"],
   });
 
   // Fetch AI recommendations
@@ -42,17 +35,18 @@ export default function Dashboard() {
   ) || [];
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <MainLayout>
+      {/* Content that was previously in <main> now goes directly inside MainLayout */}
+      {/* The <Navbar /> is now part of MainLayout */}
         {/* Dashboard Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
           <div>
-            <h1 className="text-2xl font-nunito font-bold text-foreground">
-              Welcome back, <span>{user?.firstName || user?.username}!</span>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Welcome back, <span>{user?.username}!</span>
             </h1>
-            <p className="text-muted-foreground mt-1">Let's check on your plant family today.</p>
+            <p className="text-muted-foreground">
+              Let's check on your plant family today.
+            </p>
           </div>
           <div className="mt-4 md:mt-0">
             <Button 
@@ -65,17 +59,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Reminders Section */}
-        <RemindersSection reminders={reminders} isLoading={isLoadingReminders} />
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-          {/* Calendar Preview */}
-          <div className="lg:col-span-2">
-            <CalendarPreview reminders={reminders} isLoading={isLoadingReminders} />
-          </div>
-          
           {/* AI Recommendation */}
-          <div>
+          <div className="lg:col-span-3">
             <AiRecommendation 
               recommendation={recommendations?.[0]} 
               isLoading={isLoadingRecommendations} 
@@ -156,12 +142,11 @@ export default function Dashboard() {
             </div>
           )}
         </section>
-      </main>
-      
+      {/* AddPlantModal remains, MainLayout closes around the page content */}
       <AddPlantModal 
-        isOpen={isAddPlantModalOpen}
-        onClose={() => setIsAddPlantModalOpen(false)}
+        isOpen={isAddPlantModalOpen} 
+        onClose={() => setIsAddPlantModalOpen(false)} 
       />
-    </div>
+    </MainLayout>
   );
 }

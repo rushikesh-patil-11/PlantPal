@@ -23,7 +23,7 @@ import {
   Loader2,
   PlusCircle
 } from "lucide-react";
-import Navbar from "@/components/navbar";
+import { MainLayout } from "@/components/layout/main-layout"; // Import MainLayout
 import CareLogEntry from "@/components/care-log-entry";
 import {
   DropdownMenu,
@@ -143,9 +143,8 @@ export default function PlantDetail() {
   
   if (isLoadingPlant) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <MainLayout>
+        <div className="max-w-7xl mx-auto"> {/* Adjusted container, MainLayout handles padding */}
           <Link href="/plants" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6">
             <ArrowLeftIcon className="mr-2 h-4 w-4" />
             Back to Plants
@@ -165,16 +164,15 @@ export default function PlantDetail() {
               <Skeleton className="h-32 rounded-lg" />
             </div>
           </div>
-        </main>
-      </div>
+        </div>
+      </MainLayout>
     );
   }
 
   if (!plant) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <MainLayout>
+        <div className="max-w-7xl mx-auto">  {/* Adjusted container */}
           <div className="text-center py-12">
             <AlertCircleIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Plant Not Found</h2>
@@ -185,15 +183,14 @@ export default function PlantDetail() {
               <Link href="/plants">View All Plants</Link>
             </Button>
           </div>
-        </main>
-      </div>
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <MainLayout>
+      <div className="max-w-7xl mx-auto"> {/* Adjusted container */}
         <Link href="/plants" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6">
           <ArrowLeftIcon className="mr-2 h-4 w-4" />
           Back to Plants
@@ -517,7 +514,6 @@ export default function PlantDetail() {
             </Tabs>
           </div>
         </div>
-      </main>
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -546,6 +542,7 @@ export default function PlantDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
+    </div> {/* This closes the <div className="max-w-7xl mx-auto"> that wraps the main content area */}
+  </MainLayout>
+);
 }

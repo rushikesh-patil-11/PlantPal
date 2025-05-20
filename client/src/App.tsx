@@ -10,8 +10,8 @@ import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
 import PlantsPage from "@/pages/plants-page";
 import PlantDetail from "@/pages/plant-detail";
-import CalendarPage from "@/pages/calendar-page";
 import AiRecommendations from "@/pages/ai-recommendations";
+import ProfilePage from "@/pages/profile-page";
 
 function Router() {
   return (
@@ -19,8 +19,8 @@ function Router() {
       <ProtectedRoute path="/" component={Dashboard} />
       <ProtectedRoute path="/plants" component={PlantsPage} />
       <ProtectedRoute path="/plants/:id" component={PlantDetail} />
-      <ProtectedRoute path="/calendar" component={CalendarPage} />
       <ProtectedRoute path="/ai-recommendations" component={AiRecommendations} />
+      <ProtectedRoute path="/profile" component={ProfilePage} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>

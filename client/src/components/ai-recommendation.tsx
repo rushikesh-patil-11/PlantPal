@@ -144,7 +144,7 @@ export default function AiRecommendation({
                 <p className="whitespace-pre-line">{recommendation.content}</p>
               </div>
               <div className="text-xs text-muted-foreground mt-4">
-                Generated on {formatDate(recommendation.createdAt)}
+                Generated on {recommendation.createdAt ? formatDate(recommendation.createdAt) : 'Date not available'}
               </div>
             </div>
           </DialogContent>
@@ -216,7 +216,7 @@ export default function AiRecommendation({
               <p className="whitespace-pre-line">{recommendation.content}</p>
             </div>
             <div className="text-xs text-muted-foreground mt-4">
-              Generated on {formatDate(recommendation.createdAt)}
+              Generated on {recommendation.createdAt ? formatDate(recommendation.createdAt) : 'Date not available'}
             </div>
           </div>
         </DialogContent>

@@ -1,255 +1,174 @@
-import { 
-  users, 
-  plants, 
-  careLogs, 
-  reminders, 
-  aiRecommendations, 
-  type User, 
-  type InsertUser, 
-  type Plant, 
-  type InsertPlant, 
-  type CareLog, 
-  type InsertCareLog,
-  type Reminder,
-  type InsertReminder,
-  type AiRecommendation,
-  type InsertAiRecommendation
-} from "@shared/schema";
-import session from "express-session";
-import createMemoryStore from "memorystore";
+import { db } from './auth'; // Assuming db (Drizzle instance) is exported from auth.ts
+import * as schema from '@shared/schema';
+import { eq, and, desc, isNull } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
-const MemoryStore = createMemoryStore(session);
-const sessionStoreConfig = {
-  checkPeriod: 86400000, // prune expired entries every 24h
-  stale: false
-};
+export const storage = {
+  // User operations (primarily for auth to fetch user, but could be expanded)
+  async getUserBySupabaseId(supabaseId: string): Promise<schema.User | null> {
+    const users = await db.select().from(schema.users).where(eq(schema.users.supabase_auth_id, supabaseId)).limit(1);
+    return users[0] || null;
+  },
 
-export interface IStorage {
-  // User operations
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  
   // Plant operations
-  getPlant(id: number): Promise<Plant | undefined>;
-  getPlantsByUserId(userId: number): Promise<Plant[]>;
-  createPlant(plant: InsertPlant): Promise<Plant>;
-  updatePlant(id: number, plant: Partial<Plant>): Promise<Plant | undefined>;
-  deletePlant(id: number): Promise<boolean>;
-  
-  // Care log operations
-  getCareLogsByPlantId(plantId: number): Promise<CareLog[]>;
-  getCareLogsByUserId(userId: number): Promise<CareLog[]>;
-  createCareLog(careLog: InsertCareLog): Promise<CareLog>;
-  
-  // Basic plant reminder operations
-  createBasicReminder(plantId: number, type: string): Promise<void>;
-  getBasicReminders(plantId: number): Promise<any[]>;
-  
-  // AI recommendation operations
-  getAiRecommendationsByUserId(userId: number): Promise<AiRecommendation[]>;
-  getAiRecommendationsByPlantId(plantId: number): Promise<AiRecommendation[]>;
-  createAiRecommendation(recommendation: InsertAiRecommendation): Promise<AiRecommendation>;
-  markAiRecommendationAsRead(id: number): Promise<AiRecommendation | undefined>;
-  
-  // Session store
-  sessionStore: session.Store;
-}
+  async getPlantsByUserId(userId: number): Promise<schema.Plant[]> {
+    return db.select().from(schema.plants).where(eq(schema.plants.userId, userId)).orderBy(desc(schema.plants.createdAt));
+  },
 
-export class MemStorage implements IStorage {
-  private usersData: Map<number, User>;
-  private plantsData: Map<number, Plant>;
-  private careLogsData: Map<number, CareLog>;
-  private remindersData: Map<number, Reminder>;
-  private aiRecommendationsData: Map<number, AiRecommendation>;
+  async getPlant(plantId: number): Promise<schema.Plant | null> {
+    const plants = await db.select().from(schema.plants).where(eq(schema.plants.id, plantId)).limit(1);
+    return plants[0] || null;
+  },
+
+  async createPlant(plantData: schema.InsertPlant): Promise<schema.Plant> {
+    const newPlants = await db.insert(schema.plants).values(plantData).returning();
+    return newPlants[0];
+  },
+
+  async updatePlant(plantId: number, plantData: Partial<schema.InsertPlant>): Promise<schema.Plant | null> {
+    // Ensure userId is not accidentally updated if present in plantData
+    const { userId, ...updateData } = plantData as any; 
+    const updatedPlants = await db.update(schema.plants).set(updateData).where(eq(schema.plants.id, plantId)).returning();
+    return updatedPlants[0] || null;
+  },
+
+  async deletePlant(plantId: number): Promise<boolean> {
+    const result = await db.delete(schema.plants).where(eq(schema.plants.id, plantId)).returning({ id: schema.plants.id });
+    return result.length > 0;
+  },
+
+  // CareLog operations
+  async getCareLogsByPlantId(plantId: number): Promise<schema.CareLog[]> {
+    return db.select().from(schema.careLogs).where(eq(schema.careLogs.plantId, plantId)).orderBy(desc(schema.careLogs.performedAt));
+  },
   
-  sessionStore: session.SessionStore;
-  userIdCounter: number;
-  plantIdCounter: number;
-  careLogIdCounter: number;
-  reminderIdCounter: number;
-  aiRecommendationIdCounter: number;
-  
-  constructor() {
-    this.usersData = new Map();
-    this.plantsData = new Map();
-    this.careLogsData = new Map();
-    this.remindersData = new Map();
-    this.aiRecommendationsData = new Map();
-    
-    this.sessionStore = new MemoryStore(sessionStoreConfig);
-    
-    this.userIdCounter = 1;
-    this.plantIdCounter = 1;
-    this.careLogIdCounter = 1;
-    this.reminderIdCounter = 1;
-    this.aiRecommendationIdCounter = 1;
-  }
-  
-  // User operations
-  async getUser(id: number): Promise<User | undefined> {
-    return this.usersData.get(id);
-  }
-  
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.usersData.values()).find(
-      (user) => user.username === username
-    );
-  }
-  
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.userIdCounter++;
-    const createdAt = new Date();
-    const user: User = { ...insertUser, id, createdAt };
-    this.usersData.set(id, user);
-    return user;
-  }
-  
-  // Plant operations
-  async getPlant(id: number): Promise<Plant | undefined> {
-    return this.plantsData.get(id);
-  }
-  
-  async getPlantsByUserId(userId: number): Promise<Plant[]> {
-    return Array.from(this.plantsData.values()).filter(
-      (plant) => plant.userId === userId
-    );
-  }
-  
-  async createPlant(insertPlant: InsertPlant): Promise<Plant> {
-    const id = this.plantIdCounter++;
-    const createdAt = new Date();
-    const plant: Plant = { ...insertPlant, id, createdAt, lastWatered: null };
-    this.plantsData.set(id, plant);
-    return plant;
-  }
-  
-  async updatePlant(id: number, updates: Partial<Plant>): Promise<Plant | undefined> {
-    const plant = this.plantsData.get(id);
-    if (!plant) return undefined;
-    
-    const updatedPlant = { ...plant, ...updates };
-    this.plantsData.set(id, updatedPlant);
-    return updatedPlant;
-  }
-  
-  async deletePlant(id: number): Promise<boolean> {
-    return this.plantsData.delete(id);
-  }
-  
-  // Care log operations
-  async getCareLogsByPlantId(plantId: number): Promise<CareLog[]> {
-    return Array.from(this.careLogsData.values())
-      .filter((log) => log.plantId === plantId)
-      .sort((a, b) => b.performedAt.getTime() - a.performedAt.getTime()); // Sort by date desc
-  }
-  
-  async getCareLogsByUserId(userId: number): Promise<CareLog[]> {
-    return Array.from(this.careLogsData.values())
-      .filter((log) => log.userId === userId)
-      .sort((a, b) => b.performedAt.getTime() - a.performedAt.getTime()); // Sort by date desc
-  }
-  
-  async createCareLog(insertCareLog: InsertCareLog): Promise<CareLog> {
-    const id = this.careLogIdCounter++;
-    const performedAt = new Date();
-    const careLog: CareLog = { ...insertCareLog, id, performedAt };
-    this.careLogsData.set(id, careLog);
-    
-    // If this is a watering activity, update the plant's lastWatered date
-    if (insertCareLog.activityType === 'watering') {
-      const plant = await this.getPlant(insertCareLog.plantId);
-      if (plant) {
-        await this.updatePlant(plant.id, { lastWatered: performedAt });
-      }
-    }
-    
-    return careLog;
-  }
-  
+  async getCareLogById(logId: number): Promise<schema.CareLog | null> {
+    const logs = await db.select().from(schema.careLogs).where(eq(schema.careLogs.id, logId)).limit(1);
+    return logs[0] || null;
+  },
+
+  async createCareLog(logData: schema.InsertCareLog): Promise<schema.CareLog> {
+    const newLogs = await db.insert(schema.careLogs).values(logData).returning();
+    return newLogs[0];
+  },
+
+  async updateCareLog(logId: number, logData: Partial<schema.InsertCareLog>): Promise<schema.CareLog | null> {
+    const { userId, plantId, ...updateData } = logData as any; // Prevent accidental update of foreign keys
+    const updatedLogs = await db.update(schema.careLogs).set(updateData).where(eq(schema.careLogs.id, logId)).returning();
+    return updatedLogs[0] || null;
+  },
+
+  async deleteCareLog(logId: number): Promise<boolean> {
+    const result = await db.delete(schema.careLogs).where(eq(schema.careLogs.id, logId)).returning({ id: schema.careLogs.id });
+    return result.length > 0;
+  },
+
   // Reminder operations
-  async getRemindersByUserId(userId: number): Promise<Reminder[]> {
-    return Array.from(this.remindersData.values())
-      .filter((reminder) => reminder.userId === userId)
-      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()); // Sort by due date asc
-  }
+  async getRemindersByPlantId(plantId: number): Promise<schema.Reminder[]> {
+    return db.select().from(schema.reminders).where(eq(schema.reminders.plantId, plantId)).orderBy(schema.reminders.dueDate);
+  },
   
-  async getUpcomingRemindersByUserId(userId: number): Promise<Reminder[]> {
-    const now = new Date();
-    return Array.from(this.remindersData.values())
-      .filter((reminder) => 
-        reminder.userId === userId && 
-        reminder.dueDate >= now && 
-        !reminder.completed
-      )
-      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()); // Sort by due date asc
-  }
-  
-  async getRemindersByPlantId(plantId: number): Promise<Reminder[]> {
-    return Array.from(this.remindersData.values())
-      .filter((reminder) => reminder.plantId === plantId)
-      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()); // Sort by due date asc
-  }
-  
-  async createReminder(insertReminder: InsertReminder): Promise<Reminder> {
-    const id = this.reminderIdCounter++;
-    const createdAt = new Date();
-    const reminder: Reminder = { 
-      ...insertReminder, 
-      id, 
-      createdAt, 
-      completed: false 
-    };
-    this.remindersData.set(id, reminder);
-    return reminder;
-  }
-  
-  async markReminderAsCompleted(id: number): Promise<Reminder | undefined> {
-    const reminder = this.remindersData.get(id);
-    if (!reminder) return undefined;
-    
-    const updatedReminder = { ...reminder, completed: true };
-    this.remindersData.set(id, updatedReminder);
-    return updatedReminder;
-  }
-  
-  // AI recommendation operations
-  async getAiRecommendationsByUserId(userId: number): Promise<AiRecommendation[]> {
-    return Array.from(this.aiRecommendationsData.values())
-      .filter((rec) => rec.userId === userId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort by date desc
-  }
-  
-  async getAiRecommendationsByPlantId(plantId: number): Promise<AiRecommendation[]> {
-    return Array.from(this.aiRecommendationsData.values())
-      .filter((rec) => rec.plantId === plantId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort by date desc
-  }
-  
-  async createAiRecommendation(insertRec: InsertAiRecommendation): Promise<AiRecommendation> {
-    const id = this.aiRecommendationIdCounter++;
-    const createdAt = new Date();
-    const recommendation: AiRecommendation = { 
-      ...insertRec, 
-      id, 
-      createdAt, 
-      read: false 
-    };
-    this.aiRecommendationsData.set(id, recommendation);
-    return recommendation;
-  }
-  
-  async markAiRecommendationAsRead(id: number): Promise<AiRecommendation | undefined> {
-    const recommendation = this.aiRecommendationsData.get(id);
-    if (!recommendation) return undefined;
-    
-    const updatedRecommendation = { ...recommendation, read: true };
-    this.aiRecommendationsData.set(id, updatedRecommendation);
-    return updatedRecommendation;
-  }
-}
+  async getRemindersByUserId(userId: number): Promise<schema.Reminder[]> {
+    // This requires a join if reminders don't directly have userId, or if you only want reminders for user's plants
+    // Assuming reminders have userId as per schema for simplicity in routes.ts
+    // If schema.reminders.userId exists:
+     return db.select().from(schema.reminders).where(eq(schema.reminders.userId, userId)).orderBy(schema.reminders.dueDate);
+    // If not, and you need to join through plants:
+    // const plantAlias = alias(schema.plants, 'p');
+    // return db.selectDistinctOn([schema.reminders.id], { ...schema.reminders })
+    //   .from(schema.reminders)
+    //   .innerJoin(plantAlias, eq(schema.reminders.plantId, plantAlias.id))
+    //   .where(eq(plantAlias.userId, userId))
+    //   .orderBy(schema.reminders.dueDate);
+  },
 
-import { SupabaseStorage } from './supabaseStorage';
+  async getReminderById(reminderId: number): Promise<schema.Reminder | null> {
+    const reminders = await db.select().from(schema.reminders).where(eq(schema.reminders.id, reminderId)).limit(1);
+    return reminders[0] || null;
+  },
 
-// Use Supabase for storage instead of memory storage
-export const storage = new SupabaseStorage();
+  async createReminder(reminderData: schema.InsertReminder): Promise<schema.Reminder> {
+    const newReminders = await db.insert(schema.reminders).values(reminderData).returning();
+    return newReminders[0];
+  },
+
+  async updateReminder(reminderId: number, reminderData: Partial<schema.InsertReminder>): Promise<schema.Reminder | null> {
+    const { userId, plantId, ...updateData } = reminderData as any; // Prevent accidental update of foreign keys
+    const updatedReminders = await db.update(schema.reminders).set(updateData).where(eq(schema.reminders.id, reminderId)).returning();
+    return updatedReminders[0] || null;
+  },
+
+  async deleteReminder(reminderId: number): Promise<boolean> {
+    const result = await db.delete(schema.reminders).where(eq(schema.reminders.id, reminderId)).returning({ id: schema.reminders.id });
+    return result.length > 0;
+  },
+
+  // AI Recommendation operations
+  async getAiRecommendationsByPlantId(plantId: number): Promise<schema.AiRecommendation[]> {
+    return db.select().from(schema.aiRecommendations).where(eq(schema.aiRecommendations.plantId, plantId)).orderBy(desc(schema.aiRecommendations.createdAt));
+  },
+  
+  async getAiRecommendationsByUserId(userId: number): Promise<schema.AiRecommendation[]> {
+    return db.select().from(schema.aiRecommendations).where(eq(schema.aiRecommendations.userId, userId)).orderBy(desc(schema.aiRecommendations.createdAt));
+  },
+
+  async getAiRecommendationById(recommendationId: number): Promise<schema.AiRecommendation | null> {
+    const recommendations = await db.select().from(schema.aiRecommendations).where(eq(schema.aiRecommendations.id, recommendationId)).limit(1);
+    return recommendations[0] || null;
+  },
+
+  async createAiRecommendation(recommendationData: schema.InsertAiRecommendation): Promise<schema.AiRecommendation> {
+    // Explicitly parse to ensure conformity and catch errors early
+    const validatedData = schema.insertAiRecommendationSchema.parse(recommendationData);
+    const newRecommendations = await db.insert(schema.aiRecommendations).values(validatedData).returning();
+    return newRecommendations[0];
+  },
+
+  async updateAiRecommendationReadStatus(recommendationId: number, isRead: boolean): Promise<schema.AiRecommendation | null> {
+    const updatedRecommendations = await db.update(schema.aiRecommendations)
+      .set({ read: isRead })
+      .where(eq(schema.aiRecommendations.id, recommendationId))
+      .returning();
+    return updatedRecommendations[0] || null;
+  },
+
+  async deleteAiRecommendation(recommendationId: number): Promise<boolean> {
+    const result = await db.delete(schema.aiRecommendations).where(eq(schema.aiRecommendations.id, recommendationId)).returning({ id: schema.aiRecommendations.id });
+    return result.length > 0;
+  },
+  
+  // UserSettings Operations (assuming schema.userSettings exists)
+  // NB: The following UserSettings functions are commented out because schema.userSettings 
+  // and schema.insertUserSettingSchema are not yet defined in shared/schema.ts.
+  // Please define them in your schema and uncomment these functions when ready.
+  /*
+  async getUserSettings(userId: number): Promise<schema.UserSetting | null> {
+    // Check if userSettings table exists in your schema.ts, if not, this will fail.
+    // Example: export const userSettings = pgTable("user_settings", { userId: integer('user_id').primaryKey().references(() => users.id), ... });
+    if (!schema.userSettings) {
+        console.warn('schema.userSettings is not defined. Skipping getUserSettings.');
+        return null;
+    }
+    const settings = await db.select().from(schema.userSettings).where(eq(schema.userSettings.userId, userId)).limit(1);
+    return settings[0] || null;
+  },
+
+  async updateUserSettings(userId: number, settingsData: Partial<schema.InsertUserSetting>): Promise<schema.UserSetting | null> {
+    if (!schema.userSettings || !schema.insertUserSettingSchema) { // Also check for insert schema if you have one
+        console.warn('schema.userSettings or its insert schema is not defined. Skipping updateUserSettings.');
+        return null;
+    }
+    // Upsert logic: Update if exists, insert if not.
+    const existingSettings = await this.getUserSettings(userId);
+    if (existingSettings) {
+      const updatedSettings = await db.update(schema.userSettings).set(settingsData).where(eq(schema.userSettings.userId, userId)).returning();
+      return updatedSettings[0] || null;
+    } else {
+      // Ensure all required fields for an insert are present or have defaults
+      const fullSettingsData = { ...settingsData, userId } as schema.InsertUserSetting; // Cast might be needed if types don't align perfectly
+      const newSettings = await db.insert(schema.userSettings).values(fullSettingsData).returning();
+      return newSettings[0] || null;
+    }
+  }
+  */
+};
