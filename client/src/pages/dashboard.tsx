@@ -8,7 +8,7 @@ import { MainLayout } from "@/components/layout/main-layout"; // Import MainLayo
 import AiRecommendation from "@/components/ai-recommendation";
 import PlantCard from "@/components/plant-card";
 import AddPlantModal from "@/components/add-plant-modal";
-import { Leaf, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { Leaf, Plus, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Plant, AiRecommendation as AiRecommendationType } from "@shared/schema";
 import { Link } from "wouter";
@@ -16,7 +16,6 @@ import { Link } from "wouter";
 export default function Dashboard() {
   const { user } = useAuth();
   const [isAddPlantModalOpen, setIsAddPlantModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch plants
   const { data: plants, isLoading: isLoadingPlants } = useQuery<Plant[]>({
@@ -28,11 +27,7 @@ export default function Dashboard() {
     queryKey: ["/api/ai-recommendations"],
   });
 
-  // Filter plants based on search query
-  const filteredPlants = plants?.filter(plant => 
-    plant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (plant.species && plant.species.toLowerCase().includes(searchQuery.toLowerCase()))
-  ) || [];
+  const filteredPlants = plants || [];
 
   return (
     <MainLayout>
@@ -74,20 +69,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-nunito font-semibold text-foreground">Your Plant Collection</h2>
             <div className="flex items-center space-x-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search plants..."
-                  className="pl-9 pr-3 py-2 w-full md:w-[200px] rounded-full"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Button variant="outline" size="icon" className="rounded-full hidden md:flex">
-                <SlidersHorizontal className="h-4 w-4" />
-                <span className="sr-only">Filter</span>
-              </Button>
+              {/* Search and Filter removed */}
             </div>
           </div>
           
@@ -120,7 +102,7 @@ export default function Dashboard() {
               <p className="text-muted-foreground mb-4">
                 {plants?.length === 0 
                   ? "Start by adding your first plant to your collection." 
-                  : "No plants match your search. Try a different term."}
+                  : "You have no plants in your collection yet, or there was an issue fetching them."}
               </p>
               {plants?.length === 0 && (
                 <Button onClick={() => setIsAddPlantModalOpen(true)}>

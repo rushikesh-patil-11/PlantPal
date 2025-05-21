@@ -16,54 +16,17 @@ import { Navbar } from "@/components/navbar";
 import PlantCard from "@/components/plant-card";
 import AddPlantModal from "@/components/add-plant-modal";
 import { Plant } from "@shared/schema";
-import { Plus, Search, SlidersHorizontal, Leaf } from "lucide-react";
+import { Plus, Leaf } from "lucide-react";
 
 export default function PlantsPage() {
   const [isAddPlantModalOpen, setIsAddPlantModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortOption, setSortOption] = useState("name");
-  const [filterLight, setFilterLight] = useState("all");
 
   // Fetch plants
   const { data: plants, isLoading } = useQuery<Plant[]>({
     queryKey: ["/api/plants"],
   });
 
-  // Filter and sort plants
-  const filteredAndSortedPlants = plants
-    ?.filter(plant => 
-      (plant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-       (plant.species && plant.species.toLowerCase().includes(searchQuery.toLowerCase()))) &&
-      (filterLight === "all" || plant.lightNeeds === filterLight)
-    )
-    .sort((a, b) => {
-      if (sortOption === "name") {
-        return a.name.localeCompare(b.name);
-      } else if (sortOption === "newest") {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return timeB - timeA;
-      } else if (sortOption === "oldest") {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : Number.MAX_SAFE_INTEGER;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : Number.MAX_SAFE_INTEGER;
-        return timeA - timeB;
-      } else if (sortOption === "water-soon") {
-        // Sort by days until next watering
-        const aLastWatered = a.lastWatered ? new Date(a.lastWatered).getTime() : 0;
-        const bLastWatered = b.lastWatered ? new Date(b.lastWatered).getTime() : 0;
-        
-        const aDaysUntilWatering = a.lastWatered 
-          ? a.waterFrequency - Math.floor((Date.now() - aLastWatered) / (1000 * 60 * 60 * 24))
-          : -999; // Plants never watered go last
-          
-        const bDaysUntilWatering = b.lastWatered 
-          ? b.waterFrequency - Math.floor((Date.now() - bLastWatered) / (1000 * 60 * 60 * 24))
-          : -999;
-          
-        return aDaysUntilWatering - bDaysUntilWatering;
-      }
-      return 0;
-    }) || [];
+  const plantsToDisplay = plants || [];
 
   return (
     <MainLayout>
@@ -76,7 +39,7 @@ export default function PlantsPage() {
             <div>
               <h1 className="text-2xl font-nunito font-bold text-foreground">My Plants</h1>
               <p className="text-muted-foreground mt-1">
-                {!isLoading && `${filteredAndSortedPlants.length} plants in your collection`}
+                {!isLoading && `${plantsToDisplay.length} plants in your collection`}
               </p>
             </div>
             <div className="mt-4 sm:mt-0">
@@ -87,48 +50,6 @@ export default function PlantsPage() {
             </div>
           </div>
           
-          {/* Filters */}
-          <div className="bg-white rounded-lg border shadow-sm p-4 mb-6">
-            <div className="flex flex-col md:flex-row md:items-center gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search plants..."
-                  className="pl-9"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex gap-3">
-                <Select value={sortOption} onValueChange={setSortOption}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Name (A-Z)</SelectItem>
-                    <SelectItem value="newest">Newest First</SelectItem>
-                    <SelectItem value="oldest">Oldest First</SelectItem>
-                    <SelectItem value="water-soon">Water Soon</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                <Select value={filterLight} onValueChange={setFilterLight}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="Filter by light" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Light Needs</SelectItem>
-                    <SelectItem value="low">Low Light</SelectItem>
-                    <SelectItem value="medium">Medium Light</SelectItem>
-                    <SelectItem value="bright-indirect">Bright Indirect</SelectItem>
-                    <SelectItem value="full-sun">Full Sun</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
           
           {/* Plants Grid */}
           {isLoading ? (
@@ -147,9 +68,9 @@ export default function PlantsPage() {
                 </Card>
               ))}
             </div>
-          ) : filteredAndSortedPlants.length > 0 ? (
+          ) : plantsToDisplay.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {filteredAndSortedPlants.map(plant => (
+              {plantsToDisplay.map(plant => (
                 <PlantCard key={plant.id} plant={plant} />
               ))}
             </div>
@@ -160,7 +81,7 @@ export default function PlantsPage() {
               <p className="text-muted-foreground mb-4">
                 {plants?.length === 0 
                   ? "Start by adding your first plant to your collection." 
-                  : "No plants match your search. Try different filters or search terms."}
+                  : "You currently have no plants in your collection."}
               </p>
               {plants?.length === 0 && (
                 <Button onClick={() => setIsAddPlantModalOpen(true)}>

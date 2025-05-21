@@ -39,7 +39,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { AiRecommendation as AiRecommendationType, Plant } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Lightbulb, Loader2, Plus, Search } from "lucide-react";
+import { Lightbulb, Loader2, Plus } from "lucide-react";
 
 // Schema for generating AI recommendations
 const aiRecommendationSchema = z.object({
@@ -58,8 +58,6 @@ export default function AiRecommendations() {
   const plantIdParam = params.get('plant');
   const { toast } = useToast();
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch AI recommendations
   const { data: recommendations, isLoading: isLoadingRecommendations } = useQuery<AiRecommendationType[]>({
@@ -132,22 +130,7 @@ export default function AiRecommendations() {
     }
   };
 
-  // Filter recommendations based on search and category
-  const filteredRecommendations = recommendations?.filter(rec => {
-    const matchesSearch = 
-      rec.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rec.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (rec.tags && rec.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
-    
-    const matchesCategory = selectedCategory === "all" || 
-      (rec.tags && rec.tags.includes(selectedCategory));
-    
-    return matchesSearch && matchesCategory;
-  });
-
-  // Get all unique tags from recommendations
-  const allTags = recommendations?.flatMap(rec => rec.tags || []) || [];
-  const uniqueTags = Array.from(new Set(allTags)).sort();
+  const recommendationsToDisplay = recommendations || [];
 
   // Submit form
   const onSubmit = (values: AiRecommendationFormValues) => {
@@ -170,43 +153,6 @@ export default function AiRecommendations() {
           </div>
         </div>
 
-        {/* Filters and Search */}
-        <div className="bg-white rounded-lg border shadow-sm p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search recommendations..."
-                className="pl-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div>
-              <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-                <TabsList className="h-10">
-                  <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-                  {uniqueTags.slice(0, 5).map(tag => (
-                    <TabsTrigger key={tag} value={tag} className="text-xs">{tag}</TabsTrigger>
-                  ))}
-                  {uniqueTags.length > 5 && (
-                    <Select onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="h-8 text-xs border-0">
-                        <span>More tags</span>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {uniqueTags.slice(5).map(tag => (
-                          <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </TabsList>
-              </Tabs>
-            </div>
-          </div>
-        </div>
 
         {/* Recommendations List */}
         {isLoadingRecommendations ? (
@@ -232,9 +178,9 @@ export default function AiRecommendations() {
               </Card>
             ))}
           </div>
-        ) : filteredRecommendations && filteredRecommendations.length > 0 ? (
+        ) : recommendationsToDisplay && recommendationsToDisplay.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRecommendations.map((rec) => (
+            {recommendationsToDisplay.map((rec) => (
               <AiRecommendation
                 key={rec.id}
                 recommendation={rec}
@@ -247,9 +193,7 @@ export default function AiRecommendations() {
             <Lightbulb className="mx-auto h-12 w-12 text-muted-foreground" />
             <h3 className="mt-2 text-sm font-medium text-foreground">No recommendations</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {searchQuery || selectedCategory !== "all" 
-                ? "No recommendations match your current filters."
-                : "Generate some new tips to get started!"}
+              {"No recommendations available yet. Generate some to get started!"}
             </p>
           </div>
         )}
