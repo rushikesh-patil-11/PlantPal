@@ -4,26 +4,49 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AiRecommendation as AiRecommendationType, Plant } from "@shared/schema";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDate, truncateText } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Leaf } from "lucide-react";
+import { ArrowRight, Leaf, Trash2, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
+
+// Helper function to render content with markdown-style headers
+const renderRecommendationContent = (content: string | undefined | null): (JSX.Element | null)[] | null => {
+  if (!content) return null;
+  return content.split(/\r?\n/).map((line, index) => {
+    if (line.startsWith("### ")) {
+      return <h3 key={index}>{line.substring(4)}</h3>;
+    } else if (line.startsWith("## ")) {
+      return <h2 key={index}>{line.substring(3)}</h2>;
+    } else if (line.startsWith("# ")) {
+      return <h1 key={index}>{line.substring(2)}</h1>;
+    } else if (line.trim() === '') {
+      // Filter out empty lines, or render <br key={index} /> if explicit spacing is desired
+      return null; 
+    } else {
+      return <p key={index}>{line}</p>;
+    }
+  }).filter(Boolean); // Remove nulls (from empty lines)
+};
 
 interface AiRecommendationProps {
   recommendation?: AiRecommendationType;
   isLoading?: boolean;
   compact?: boolean;
   onViewMore?: () => void;
+  onDelete?: (id: number) => void;
 }
 
 export default function AiRecommendation({ 
   recommendation, 
   isLoading = false,
   compact = false,
-  onViewMore 
+  onViewMore, 
+  onDelete 
 }: AiRecommendationProps) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
   // Fetch plants for plant name
   const { data: plants } = useQuery<Plant[]>({
@@ -39,9 +62,16 @@ export default function AiRecommendation({
   
   // Dialog open handler
   const handleViewMore = () => {
-    setIsDialogOpen(true);
+    setIsViewDialogOpen(true);
     if (onViewMore) {
       onViewMore();
+    }
+  };
+
+  const handleDelete = () => {
+    if (recommendation && onDelete) {
+      onDelete(recommendation.id);
+      setIsDeleteDialogOpen(false);
     }
   };
 
@@ -95,6 +125,7 @@ export default function AiRecommendation({
       <div 
         className="bg-white rounded-lg border p-4 cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all"
         onClick={handleViewMore}
+        // Stop propagation to prevent card click if delete button is inside this clickable area for compact view
       >
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -120,8 +151,35 @@ export default function AiRecommendation({
           </div>
         </div>
         
+        {/* Delete button for compact view - consider placement carefully */}
+        {onDelete && recommendation && (
+          <div className="absolute top-2 right-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={(e) => { 
+                      e.stopPropagation(); // Prevent card click from triggering view dialog
+                      setIsDeleteDialogOpen(true); 
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Delete recommendation</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
+
         {/* Full recommendation dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{recommendation.title}</DialogTitle>
@@ -141,7 +199,7 @@ export default function AiRecommendation({
                 ))}
               </div>
               <div className="prose prose-sm max-w-none">
-                <p className="whitespace-pre-line">{recommendation.content}</p>
+                {renderRecommendationContent(recommendation.content)}
               </div>
               <div className="text-xs text-muted-foreground mt-4">
                 Generated on {recommendation.createdAt ? formatDate(recommendation.createdAt) : 'Date not available'}
@@ -183,17 +241,39 @@ export default function AiRecommendation({
                   Read More
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
-                {!recommendation.read && (
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">New</Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {onDelete && recommendation && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => setIsDeleteDialogOpen(true)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Delete recommendation</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Delete</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  {!recommendation.read && (
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">New</Badge>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
       
-      {/* Full recommendation dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* Full recommendation view dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{recommendation.title}</DialogTitle>
@@ -213,7 +293,7 @@ export default function AiRecommendation({
               ))}
             </div>
             <div className="prose prose-sm max-w-none">
-              <p className="whitespace-pre-line">{recommendation.content}</p>
+              {renderRecommendationContent(recommendation.content)}
             </div>
             <div className="text-xs text-muted-foreground mt-4">
               Generated on {recommendation.createdAt ? formatDate(recommendation.createdAt) : 'Date not available'}
@@ -221,6 +301,31 @@ export default function AiRecommendation({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      {recommendation && (
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                <AlertTriangle className="h-5 w-5 mr-2 text-destructive" />
+                Confirm Deletion
+              </DialogTitle>
+              <DialogDescription className="pt-2">
+                Are you sure you want to delete this AI recommendation titled "<strong>{recommendation.title}</strong>"? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button variant="destructive" onClick={handleDelete}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

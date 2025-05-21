@@ -493,8 +493,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to generate AI recommendation", error });
     }
   });
-  
-  app.post("/api/ai-recommendations/:id/read", isAuthenticated, async (req: AuthenticatedRequest, res) => { 
+
+  // Delete an AI recommendation
+  app.delete("/api/ai-recommendations/:id", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const recommendationId = parseInt(req.params.id, 10);
+      if (isNaN(recommendationId)) {
+        return res.status(400).json({ message: "Invalid recommendation ID format" });
+      }
+
+      const userId = req.user!.id;
+      const recommendation = await storage.getAiRecommendationById(recommendationId);
+
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+
+      if (recommendation.userId !== userId) {
+        // To prevent leaking information about existence, also return 404
+        // Or, if explicit authorization error is preferred: return res.status(403).json({ message: "Forbidden" });
+        return res.status(404).json({ message: "Recommendation not found or not authorized" });
+      }
+
+      const deleted = await storage.deleteAiRecommendation(recommendationId);
+      if (deleted) {
+        res.status(204).send(); // Successfully deleted, no content to return
+      } else {
+        // This case might occur if the item was deleted by another request between fetch and delete,
+        // or if there's a db issue not throwing an error but failing to delete.
+        res.status(404).json({ message: "Recommendation not found or could not be deleted" });
+      }
+    } catch (error) {
+      console.error(`Error in DELETE /api/ai-recommendations/${req.params.id}:`, error);
+      res.status(500).json({ message: "Failed to delete AI recommendation", error: (error as Error).message });
+    }
+  });
+
+  app.post("/api/ai-recommendations/:id/read", isAuthenticated, async (req: AuthenticatedRequest, res: Response) => { 
     try {
       const recommendationId = parseInt(req.params.id, 10);
       if (isNaN(recommendationId)) {

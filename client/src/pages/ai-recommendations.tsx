@@ -39,7 +39,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { AiRecommendation as AiRecommendationType, Plant } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Lightbulb, Loader2, Plus } from "lucide-react";
+import { Lightbulb, Loader2, Plus, Trash2 } from "lucide-react";
 
 // Schema for generating AI recommendations
 const aiRecommendationSchema = z.object({
@@ -62,6 +62,7 @@ export default function AiRecommendations() {
   // Fetch AI recommendations
   const { data: recommendations, isLoading: isLoadingRecommendations } = useQuery<AiRecommendationType[]>({
     queryKey: ["/api/ai-recommendations"],
+    refetchOnWindowFocus: true, // ensure data is fresh
   });
 
   // Fetch plants for the form dropdown
@@ -90,6 +91,57 @@ export default function AiRecommendations() {
         description: "Failed to generate recommendation. Please try again.",
         variant: "destructive",
       });
+    },
+  });
+
+  // Delete recommendation mutation with optimistic updates
+  const deleteRecommendationMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/ai-recommendations/${id}`);
+      if (!res.ok) {
+        // Attempt to parse error message from backend if available
+        const errorData = await res.json().catch(() => ({ message: 'Failed to delete recommendation due to a server error or invalid response.' }));
+        throw new Error(errorData.message);
+      }
+      return id; // Return the ID of the deleted item
+    },
+    onMutate: async (deletedItemId: number) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: ['/api/ai-recommendations'] });
+
+      // Snapshot the previous value
+      const previousRecommendations = queryClient.getQueryData<AiRecommendationType[]>(['/api/ai-recommendations']);
+
+      // Optimistically update to the new value (remove the item)
+      queryClient.setQueryData<AiRecommendationType[]>(['/api/ai-recommendations'], (old) =>
+        old ? old.filter((rec) => rec.id !== deletedItemId) : []
+      );
+
+      // Return a context object with the snapshotted value
+      return { previousRecommendations };
+    },
+    onError: (error: Error, deletedItemId: number, context: { previousRecommendations?: AiRecommendationType[] } | undefined) => {
+      // If the mutation fails, roll back the optimistic update
+      if (context?.previousRecommendations) {
+        queryClient.setQueryData(['/api/ai-recommendations'], context.previousRecommendations);
+      }
+      toast({
+        title: "Error Deleting Recommendation",
+        description: error.message || "Could not delete. The item has been restored.",
+        variant: "destructive",
+      });
+    },
+    onSuccess: (data: number, deletedItemId: number) => {
+      toast({
+        title: "Recommendation Deleted",
+        description: "The AI recommendation has been successfully removed (pending server confirmation).",
+      });
+      // No need to invalidate here if onSettled does it.
+    },
+    onSettled: (data, error, deletedItemId) => {
+      // Always refetch after error or success to ensure consistency with server state.
+      // If the backend hasn't actually deleted the item, it might reappear here.
+      queryClient.invalidateQueries({ queryKey: ['/api/ai-recommendations'] });
     },
   });
 
@@ -185,6 +237,7 @@ export default function AiRecommendations() {
                 key={rec.id}
                 recommendation={rec}
                 onViewMore={() => markAsReadMutation.mutate(rec.id)}
+                onDelete={() => deleteRecommendationMutation.mutate(rec.id)}
               />
             ))}
           </div>

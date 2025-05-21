@@ -1704,6 +1704,31 @@ async function registerRoutes(app2) {
       res.status(500).json({ message: "Failed to generate AI recommendation", error });
     }
   });
+  app2.delete("/api/ai-recommendations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const recommendationId = parseInt(req.params.id, 10);
+      if (isNaN(recommendationId)) {
+        return res.status(400).json({ message: "Invalid recommendation ID format" });
+      }
+      const userId = req.user.id;
+      const recommendation = await storage.getAiRecommendationById(recommendationId);
+      if (!recommendation) {
+        return res.status(404).json({ message: "Recommendation not found" });
+      }
+      if (recommendation.userId !== userId) {
+        return res.status(404).json({ message: "Recommendation not found or not authorized" });
+      }
+      const deleted = await storage.deleteAiRecommendation(recommendationId);
+      if (deleted) {
+        res.status(204).send();
+      } else {
+        res.status(404).json({ message: "Recommendation not found or could not be deleted" });
+      }
+    } catch (error) {
+      console.error(`Error in DELETE /api/ai-recommendations/${req.params.id}:`, error);
+      res.status(500).json({ message: "Failed to delete AI recommendation", error: error.message });
+    }
+  });
   app2.post("/api/ai-recommendations/:id/read", isAuthenticated, async (req, res) => {
     try {
       const recommendationId = parseInt(req.params.id, 10);
