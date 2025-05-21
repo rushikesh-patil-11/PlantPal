@@ -1,40 +1,60 @@
-import { defineConfig } from "vite";
+import { defineConfig, PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from 'url';
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// runtimeErrorOverlay might be Replit-specific or dev-only.
+// Dynamically import it only if needed and available.
+// import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-export default defineConfig({
-  plugins: [
-    react(),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-        ]
-      : []),
-  ],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "client", "src"),
-      "@shared": path.resolve(__dirname, "shared"),
-      "@assets": path.resolve(__dirname, "attached_assets"),
+// Handle __dirname and __filename safely
+let currentDirname;
+try {
+  // This will work in ESM contexts like Vite's own execution
+  currentDirname = path.dirname(fileURLToPath(import.meta.url));
+} catch (e) {
+  // Fallback for contexts where import.meta.url is not available or problematic
+  currentDirname = process.cwd(); // Assumes vite.config.ts is at project root for path resolution
+}
+
+export default defineConfig(async ({ command, mode }) => {
+  const plugins: PluginOption[] = [react()];
+
+  // Add Replit-specific plugins only if REPL_ID is set and in development
+  if (process.env.REPL_ID && mode === 'development') {
+    try {
+      const runtimeErrorOverlay = await import('@replit/vite-plugin-runtime-error-modal');
+      plugins.push(runtimeErrorOverlay.default()); // .default() if it's a default export
+    } catch (e) {
+      console.warn('Failed to load @replit/vite-plugin-runtime-error-modal:', e);
+    }
+
+    try {
+      const cartographerPlugin = await import('@replit/vite-plugin-cartographer');
+      plugins.push(cartographerPlugin.cartographer());
+    } catch (e) {
+      console.warn('Failed to load @replit/vite-plugin-cartographer:', e);
+    }
+  }
+
+  return {
+    plugins,
+    resolve: {
+      alias: {
+        "@": path.resolve(currentDirname, "client", "src"),
+        "@shared": path.resolve(currentDirname, "shared"),
+        "@assets": path.resolve(currentDirname, "attached_assets"),
+      },
     },
-  },
-  root: path.resolve(__dirname, "client"),
-  server: {
-    fs: {
-      strict: false,
+    root: path.resolve(currentDirname, "client"), // Set the root to the client directory
+    server: {
+      fs: {
+        strict: false,
+      },
     },
-  },
-  build: {
-    outDir: path.resolve(__dirname, "dist/public"),
-    emptyOutDir: true,
-  },
+    build: {
+      outDir: path.resolve(currentDirname, "dist/public"), // Output to dist/public at project root
+      emptyOutDir: true,
+    },
+  };
 });
