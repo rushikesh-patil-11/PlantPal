@@ -3,6 +3,10 @@
   publish = "dist/public"
   functions = "server"
 
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["lightningcss"]
+
 # Proxy rule for API calls
 [[redirects]]
   from = "/api/*"
