@@ -33,7 +33,14 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function AuthPage() {
   const [, navigate] = useLocation();
-  const { loginMutation, registerMutation, isLoading: isAuthLoading } = useAuth();
+  const { user, loginMutation, registerMutation, isLoading: isAuthLoading } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      console.log("AuthPage: User detected in useEffect, navigating to '/'. User:", user);
+      navigate('/');
+    }
+  }, [user, navigate]);
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -54,7 +61,14 @@ export default function AuthPage() {
 
   const onLoginSubmit = (data: LoginFormValues) => {
     loginMutation.mutate(data, {
-      onSuccess: () => navigate('/dashboard'),
+      onSuccess: (loggedInUser) => {
+        console.log("AuthPage: Login mutation successful. User:", loggedInUser);
+        // Navigation is now handled by the useEffect hook
+      },
+      onError: (error) => {
+        console.error("AuthPage: Login mutation error:", error);
+        // Toast for error is handled globally in useAuth
+      }
     });
   };
 
@@ -62,7 +76,16 @@ export default function AuthPage() {
     // Omit supabase_auth_id as it's not part of the form input
     const { supabase_auth_id, ...registrationData } = data as any; 
     registerMutation.mutate(registrationData, {
-      onSuccess: () => navigate('/dashboard'), // Or to a 'please verify email' page
+      onSuccess: (registeredUser) => {
+        console.log("AuthPage: Register mutation successful. Supabase User:", registeredUser);
+        // Navigation for newly registered users (post-email-confirmation) 
+        // will also be handled by useEffect once they log in and 'user' state is populated.
+        // Or, if registration immediately logs them in and sets 'user', useEffect handles it.
+      },
+      onError: (error) => {
+        console.error("AuthPage: Register mutation error:", error);
+        // Toast for error is handled globally in useAuth
+      }
     });
   };
 

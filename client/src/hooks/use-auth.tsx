@@ -69,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return appUser;
     },
     onSuccess: (user: SelectUser) => {
+      queryClient.setQueryData(["/api/user"], user); // Explicitly update the query cache
       toast({
         title: "Login successful",
         description: `Welcome back, ${user.username || user.email}!`,
