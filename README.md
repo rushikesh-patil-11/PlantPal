@@ -22,7 +22,7 @@ This project is a Plant Care Companion application.
 
 1. Clone the repo
    ```sh
-   git clone https://example.com/your_project.git
+   git clone https://github.com/rushikesh-patil-11/Plant-Monitoring-App.git
    ```
 2. Navigate to the project directory
    ```sh
@@ -69,6 +69,6 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Contact
 
-Your Name - your.email@example.com
+Rushikesh Patil
 
-Project Link: [https://github.com/your_username/your_project](https://github.com/your_username/your_project)
+Project Link: [https://github.com/rushikesh-patil-11/Plant-Monitoring-App](https://github.com/rushikesh-patil-11/Plant-Monitoring-App)
