@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error,
     isLoading,
   } = useQuery<SelectUser | null, Error>({
-    queryKey: ["/api/user"],
+    queryKey: ["/api/auth/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
@@ -57,9 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Login successful with Supabase, but no session or user data returned. Email might not be confirmed.");
       }
       
-      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       const appUser = await queryClient.fetchQuery<SelectUser | null, Error>({
-        queryKey: ["/api/user"],
+        queryKey: ["/api/auth/me"],
         queryFn: getQueryFn({ on401: "returnNull" }),
       });
 
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return appUser;
     },
     onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user); // Explicitly update the query cache
+      queryClient.setQueryData(["/api/auth/me"], user); 
       toast({
         title: "Login successful",
         description: `Welcome back, ${user.username || user.email}!`,
@@ -136,14 +136,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
+      queryClient.setQueryData(["/api/auth/me"], null);
       toast({
         title: "Logged out",
         description: "You've been successfully logged out.",
       });
     },
     onError: (error: Error) => {
-      queryClient.setQueryData(["/api/user"], null);
+      queryClient.setQueryData(["/api/auth/me"], null);
       toast({
         title: "Logout failed",
         description: error.message || "An error occurred during logout.",
