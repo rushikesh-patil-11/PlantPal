@@ -1773,36 +1773,50 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from "url";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
-var __filename = fileURLToPath(import.meta.url);
-var __dirname = path.dirname(__filename);
-var vite_config_default = defineConfig({
-  plugins: [
-    react(),
-    runtimeErrorOverlay(),
-    ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
-      await import("@replit/vite-plugin-cartographer").then(
-        (m) => m.cartographer()
-      )
-    ] : []
-  ],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "client", "src"),
-      "@shared": path.resolve(__dirname, "shared"),
-      "@assets": path.resolve(__dirname, "attached_assets")
+var currentDirname;
+try {
+  currentDirname = path.dirname(fileURLToPath(import.meta.url));
+} catch (e) {
+  currentDirname = process.cwd();
+}
+var vite_config_default = defineConfig(async ({ command, mode }) => {
+  const plugins = [react()];
+  if (process.env.REPL_ID && mode === "development") {
+    try {
+      const runtimeErrorOverlay = await import("@replit/vite-plugin-runtime-error-modal");
+      plugins.push(runtimeErrorOverlay.default());
+    } catch (e) {
+      console.warn("Failed to load @replit/vite-plugin-runtime-error-modal:", e);
     }
-  },
-  root: path.resolve(__dirname, "client"),
-  server: {
-    fs: {
-      strict: false
+    try {
+      const cartographerPlugin = await import("@replit/vite-plugin-cartographer");
+      plugins.push(cartographerPlugin.cartographer());
+    } catch (e) {
+      console.warn("Failed to load @replit/vite-plugin-cartographer:", e);
     }
-  },
-  build: {
-    outDir: path.resolve(__dirname, "dist/public"),
-    emptyOutDir: true
   }
+  return {
+    plugins,
+    resolve: {
+      alias: {
+        "@": path.resolve(currentDirname, "client", "src"),
+        "@shared": path.resolve(currentDirname, "shared"),
+        "@assets": path.resolve(currentDirname, "attached_assets")
+      }
+    },
+    root: path.resolve(currentDirname, "client"),
+    // Set the root to the client directory
+    server: {
+      fs: {
+        strict: false
+      }
+    },
+    build: {
+      outDir: path.resolve(currentDirname, "dist/public"),
+      // Output to dist/public at project root
+      emptyOutDir: true
+    }
+  };
 });
 
 // server/vite.ts

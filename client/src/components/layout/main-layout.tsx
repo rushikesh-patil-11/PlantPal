@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import React, { ReactNode, useState } from 'react';
 import { Navbar } from '../navbar';
 import { Sidebar } from './sidebar';
 import { MobileSidebar } from './mobile-sidebar';
